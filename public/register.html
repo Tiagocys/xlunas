@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cadastro • Xlunas</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card">
+    <h1>Criar conta 🔥</h1>
+
+    <button class="gbtn" id="googleSignUp">Cadastrar com Google</button>
+    <div class="divider"><span>ou</span></div>
+
+    <form id="signupForm">
+      <label>E‑mail
+        <input type="email" id="regEmail" required />
+      </label>
+
+      <label>Senha
+        <input type="password" id="regPass" minlength="6" required />
+      </label>
+
+      <label>Data de nascimento
+        <input type="date" id="dob" required />
+      </label>
+
+      <button type="submit">Criar conta</button>
+      <p id="regError" class="msg"></p>
+    </form>
+
+    <p class="small">
+      Já tem conta? <a href="index.html">Entrar</a>
+    </p>
+  </main>
+
+  <script type="module" src="supabase.js"></script>
+</body>
+</html>

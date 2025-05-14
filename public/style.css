@@ -21,3 +21,15 @@ button:hover{opacity:.9}
 
 .msg{color:#ff7b7b;height:1.2rem;margin-top:.5rem;text-align:center}
 .small{font-size:.85rem;text-align:center;margin-top:1rem}
+
+/* ... estilos que você já tinha ... */
+
+.gbtn{
+  width:100%;padding:.8rem;border:none;border-radius:.5rem;
+  background:#fff;color:#111;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:.5rem
+}
+.gbtn::before{content:url("https://unpkg.com/ionicons@7.1.0/dist/svg/logo-google.svg");width:18px}
+.divider{display:flex;align-items:center;margin:1rem 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:#444}
+.divider span{margin:0 .6rem;font-size:.8rem;color:#aaa}
