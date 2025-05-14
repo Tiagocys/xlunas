@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const SUPABASE_URL  = 'https://YOUR‑PROJECT.supabase.co';
-const SUPABASE_KEY  = 'public‑anon‑key';          // Settings ▸ API
+const SUPABASE_URL  = 'https://jtbwfvtalanakndzrgij.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0YndmdnRhbGFuYWtuZHpyZ2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcyMzQ4NjksImV4cCI6MjA2MjgxMDg2OX0.8EEuJuEhDz71ol6Arsys8SbTJ2mBksUiHXKXoBDDdLU';          // Settings ▸ API
 const supabase      = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true }
 });
