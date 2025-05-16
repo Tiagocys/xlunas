@@ -10,6 +10,10 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 /* ——————————————————————————————————————————
    1. Função que decide a rota pós-login
 ——————————————————————————————————————————*/
+function go(path){
+  if (location.pathname !== path) location.href = path;
+}
+
 async function afterLogin(session) {
   const { data, error } = await supabase
     .from('users')
@@ -17,14 +21,10 @@ async function afterLogin(session) {
     .eq('id', session.user.id)
     .single();
 
-  if (error) {
-    console.error(error);
-    return alert('Erro ao verificar perfil.');
-  }
+  if (error) return alert('Erro ao verificar perfil.');
 
-  location.href = data.profile_complete
-    ? '/dashboard.html'
-    : '/complete-profile.html';
+  if (data.profile_complete)   go('/dashboard.html');
+  else                          go('/complete-profile.html');
 }
 
 /* ——————————————————————————————————————————

@@ -32,8 +32,11 @@
   <script type="module">
     import { supabase } from './supabase.js';
 
-    const form   = document.getElementById('profileForm');
-    const errP   = document.getElementById('profErr');
+    const fullName = document.getElementById('fullName');
+    const username = document.getElementById('username');
+    const dob      = document.getElementById('dob');
+    const form     = document.getElementById('profileForm');
+    const errP     = document.getElementById('profErr');
 
     // Pré-preencher se já existir algo
     (async () => {
@@ -50,7 +53,8 @@
         fullName.value = data.full_name ?? '';
         username.value = data.username   ?? '';
         dob.value      = data.dob        ?? '';
-      }
+     }
+
     })();
 
     form.addEventListener('submit', async (e) => {
