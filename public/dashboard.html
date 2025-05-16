@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard • Xlunas</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-content">
+      <img id="avatar" class="avatar" src="" alt="Avatar" />
+      <span id="username" class="username"></span>
+      <button id="logoutBtn" class="logout-btn">Logout</button>
+    </div>
+  </nav>
+
+  <script type="module">
+    import { supabase } from './supabase.js';
+
+    // Seleção de elementos
+    const avatarImg = document.getElementById('avatar');
+    const userSpan = document.getElementById('username');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    // Verifica sessão no carregamento
+    document.addEventListener('DOMContentLoaded', async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Redireciona para login se não estiver autenticado
+        window.location.href = '/';
+        return;
+      }
+
+      // Busca avatar e username na tabela users
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('username, avatar_url')
+        .eq('id', session.user.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao buscar dados do usuário:', error.message);
+        // Fallback para metadata
+        const { user } = await supabase.auth.getUser();
+        userSpan.textContent = user.user_metadata.full_name || session.user.email;
+        avatarImg.src = user.user_metadata.avatar_url || user.user_metadata.picture || 'default_profile.png';
+      } else {
+        userSpan.textContent = userData.username;
+        avatarImg.src = userData.avatar_url || 'default_profile.png';
+      }
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>
