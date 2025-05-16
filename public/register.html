@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Cadastro • Xlunas</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <main class="card">
@@ -14,7 +14,15 @@
     <div class="divider"><span>ou</span></div>
 
     <form id="signupForm">
-      <label>E‑mail
+      <label>Nome
+        <input type="text" id="regName" required />
+      </label>
+
+      <label>Sobrenome
+        <input type="text" id="regLastName" required />
+      </label>
+
+      <label>E-mail
         <input type="email" id="regEmail" required />
       </label>
 
@@ -35,6 +43,58 @@
     </p>
   </main>
 
-  <script type="module" src="supabase.js"></script>
+  <script type="module">
+    import { supabase } from './supabase.js';
+
+    const form        = document.getElementById('signupForm');
+    const errP        = document.getElementById('regError');
+    const gSignUpBtn  = document.getElementById('googleSignUp');
+    const nameInput   = document.getElementById('regName');
+    const lastInput   = document.getElementById('regLastName');
+    const emailInput  = document.getElementById('regEmail');
+    const passInput   = document.getElementById('regPass');
+    const dobInput    = document.getElementById('dob');
+
+    // botão Google
+    gSignUpBtn?.addEventListener('click', () =>
+      supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${location.origin}` }
+      })
+    );
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errP.textContent = '';
+
+      // 1) cria no Auth
+      const { data, error: signErr } = await supabase.auth.signUp({
+        email:    emailInput.value.trim().toLowerCase(),
+        password: passInput.value
+      });
+      if (signErr) return errP.textContent = signErr.message;
+
+      const userId = data.user.id;
+
+      // 2) grava no public.users
+      const { error: updErr } = await supabase
+        .from('users')
+        .update({
+          name      : nameInput.value.trim(),
+          last_name : lastInput.value.trim(),
+          username  : emailInput.value.split('@')[0].toLowerCase(),
+          dob       : dobInput.value
+        })
+        .eq('id', userId);
+
+      if (updErr) {
+        console.error(updErr);
+        return errP.textContent = updErr.message;
+      }
+
+      // 3) redireciona
+      window.location.href = '/dashboard';
+    });
+  </script>
 </body>
 </html>

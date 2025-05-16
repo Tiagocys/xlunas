@@ -17,7 +17,7 @@ function go(path){
 async function afterLogin(session) {
   const { data, error } = await supabase
     .from('users')
-    .select('name, last_name, username, dob')
+    .select('name, last_name, username, dob, avatar_url')
     .eq('id', session.user.id)
     .single();
 
@@ -26,11 +26,25 @@ async function afterLogin(session) {
     return alert('Erro ao verificar perfil.');
   }
 
+  // 1) Se vier do Google e avatar_url estiver vazio, puxa de user_metadata
+  const { data: { user } } = await supabase.auth.getUser();
+  const pic = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+  if (pic && !data.avatar_url) {
+    await supabase
+      .from('users')
+      .update({ avatar_url: pic })
+      .eq('id', user.id);
+    data.avatar_url = pic;
+  }
+
+  // 2) Verifica campos obrigatórios
   const needsInfo = !data.name || !data.last_name ||
                     !data.username || !data.dob;
-  const target    = needsInfo ? '/complete-profile' : '/dashboard';
 
-  go(target);   // aqui você garante que só vai navegar se for uma rota diferente
+  const target = needsInfo ? '/complete-profile' : '/dashboard';
+  if (location.pathname !== target) {
+    location.href = target;
+  }
 }
 
 
