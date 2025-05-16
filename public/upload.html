@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enviar conteúdo • Xlunas</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card" style="max-width:600px">
+    <h1>Enviar vídeo ou foto</h1>
+
+    <form id="uploadForm">
+      <label>Arquivo (MP4, MOV, JPG, PNG)
+        <input type="file" id="fileInput" accept="video/*,image/*" required />
+      </label>
+
+      <label>Título
+        <input type="text" id="title" maxlength="120" required />
+      </label>
+
+      <label>Descrição (opcional)
+        <textarea id="description" maxlength="500" rows="3"></textarea>
+      </label>
+
+      <button type="submit">Enviar</button>
+      <progress id="progress" value="0" max="100" hidden></progress>
+      <p id="msg" class="msg"></p>
+    </form>
+  </main>
+
+  <script type="module">
+    import { supabase } from './supabase.js';
+
+    const form      = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    const progress  = document.getElementById('progress');
+    const msgP      = document.getElementById('msg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msgP.textContent = '';
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const isVideo = file.type.startsWith('video/');
+      const endpoint = isVideo
+        ? 'https://x-lunas.cysneirostiago.workers.dev/stream-direct-upload'
+        : '/image-direct-upload';
+
+      // 1) Solicita uploadURL e uid ao Worker
+      const tokenRes = await fetch(endpoint, { method: 'POST' });
+      if (!tokenRes.ok) {
+        msgP.textContent = 'Erro ao gerar token de upload.';
+        return;
+      }
+      const { uploadURL, uid } = await tokenRes.json();
+
+      // 2) Upload do arquivo
+      progress.hidden = false;
+      try {
+        const uploadRes = await fetch(uploadURL, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!uploadRes.ok) throw new Error('Falha no upload');
+        progress.value = 100;
+      } catch (err) {
+        msgP.textContent = err.message;
+        progress.hidden = true;
+        return;
+      }
+
+      // 3) Grava metadados em Supabase
+      const {
+        data: { session },
+        error: sessErr
+      } = await supabase.auth.getSession();
+      if (sessErr || !session) {
+        msgP.textContent = 'Sessão expirada.';
+        return;
+      }
+
+      const mediaType = isVideo ? 'video' : 'image';
+      const mediaUrl  = isVideo ? uid : uploadURL;
+
+      const { error } = await supabase
+        .from('posts')
+        .insert({
+          creator_id: session.user.id,
+          media_url: mediaUrl,
+          media_type: mediaType,
+          title: document.getElementById('title').value.trim(),
+          description: document.getElementById('description').value.trim(),
+          is_private: true
+        });
+
+      if (error) {
+        msgP.textContent = error.message;
+      } else {
+        msgP.textContent = 'Upload concluído!';
+        form.reset();
+      }
+      progress.hidden = true;
+    });
+  </script>
+</body>
+</html>
