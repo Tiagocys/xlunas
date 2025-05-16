@@ -49,14 +49,31 @@
     const errP          = document.getElementById('profErr');
     const form          = document.getElementById('profileForm');
 
-    // Limita data picker a hoje - 18 anos
+    // 1) Limita data picker a hoje - 18 anos
     const today = new Date();
     const year18Ago = today.getFullYear() - 18;
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     dobInput.max = `${year18Ago}-${mm}-${dd}`;
 
-    // Pre-fill (sem redirecionar)
+    // 2) Substituir mensagem de validação do datepicker
+    dobInput.addEventListener('invalid', () => {
+      // se passou do max definido acima
+      if (dobInput.validity.rangeOverflow) {
+        dobInput.setCustomValidity(
+          'É necessário ter mais de 18 anos para se cadastrar'
+        );
+      } else {
+        dobInput.setCustomValidity(''); // outras invalidações voltam ao normal
+      }
+    });
+    // limpa custom message assim que o usuário digitar algo novo
+    dobInput.addEventListener('input', () => {
+      dobInput.setCustomValidity('');
+      errP.textContent = '';
+    });
+
+    // 3) Pre-fill (sem redirecionar)
     (async () => {
       const {
         data: { session }
@@ -79,7 +96,7 @@
       dobInput.value      = data.dob ?? '';
     })();
 
-    // Submit
+    // 4) Handler do submit
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errP.textContent = '';
@@ -109,7 +126,21 @@
         return;
       }
 
-      // 4. Pega session e grava no Supabase
+       // 5) Normalizar nome e sobrenome
+      const formattedName = nameInput.value
+        .trim()
+        .toLowerCase()
+        .split(' ')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      const formattedLast = lastNameInput.value
+        .trim()
+        .toLowerCase()
+        .split(' ')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+
+      // 6) Gravar no Supabase usando os valores formatados
       const {
         data: { session }
       } = await supabase.auth.getSession();
@@ -121,10 +152,10 @@
       const { error } = await supabase
         .from('users')
         .update({
-          name      : nameInput.value.trim(),
-          last_name : lastNameInput.value.trim(),
-          username  : usernameInput.value.trim().toLowerCase(),
-          dob       : dobInput.value
+          name     : formattedName,
+          last_name: formattedLast,
+          username : usernameInput.value.trim().toLowerCase(),
+          dob      : dobInput.value
         })
         .eq('id', session.user.id);
 
@@ -134,7 +165,7 @@
         return;
       }
 
-      // 5. Redireciona
+      // 7) Redireciona
       window.location.href = '/dashboard';
     });
   </script>
