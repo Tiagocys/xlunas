@@ -28,11 +28,11 @@ async function afterLogin(session) {
 
   const needsInfo = !data.name || !data.last_name ||
                     !data.username || !data.dob;
+  const target    = needsInfo ? '/complete-profile' : '/dashboard';
 
-  const target = needsInfo ? '/complete-profile.html' : '/dashboard.html';
-
-  if (location.pathname !== target) location.href = target;
+  go(target);   // aqui você garante que só vai navegar se for uma rota diferente
 }
+
 
 
 /* ───────────────────────────────────────────────────────────────
@@ -43,7 +43,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!session) return;
 
   // não chame afterLogin se já estamos na tela de completar perfil
-  if (location.pathname === '/complete-profile.html') return;
+  // não chame afterLogin se já estamos em qualquer URL de complete-profile
+  const path = location.pathname.toLowerCase();
+  if (path === '/complete-profile' || path === '/complete-profile.html') {
+    return;
+  }
+
 
   await afterLogin(session);
 });
