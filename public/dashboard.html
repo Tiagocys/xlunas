@@ -47,7 +47,7 @@
         avatarImg.src = user.user_metadata.avatar_url || user.user_metadata.picture || 'default_profile.png';
       } else {
         userSpan.textContent = userData.username;
-        avatarImg.src = userData.avatar_url || 'default_profile.png';
+        avatarImg.src = userData.avatar_url ?? '/default_profile.png';
       }
     });
 
