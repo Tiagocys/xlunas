@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Complete seu perfil • Xlunas</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card">
+    <h1>Falta pouco 😉</h1>
+
+    <form id="profileForm">
+      <label>Nome completo
+        <input type="text" id="fullName" required>
+      </label>
+
+      <label>Username
+        <input type="text" id="username" pattern="^[a-z0-9._]{3,}$"
+               title="Somente letras, números, ponto ou underline" required>
+      </label>
+
+      <label>Data de nascimento
+        <input type="date" id="dob" required>
+      </label>
+
+      <button type="submit">Salvar e continuar</button>
+      <p id="profErr" class="msg"></p>
+    </form>
+  </main>
+
+  <script type="module">
+    import { supabase } from './supabase.js';
+
+    const form   = document.getElementById('profileForm');
+    const errP   = document.getElementById('profErr');
+
+    // Pré-preencher se já existir algo
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) location.href = '/index.html';
+
+      const { data } = await supabase
+        .from('users')
+        .select('full_name, username, dob')
+        .eq('id', session.user.id)
+        .single();
+
+      if (data) {
+        fullName.value = data.full_name ?? '';
+        username.value = data.username   ?? '';
+        dob.value      = data.dob        ?? '';
+      }
+    })();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errP.textContent = '';
+
+      const update = {
+        full_name: fullName.value.trim(),
+        username : username.value.trim().toLowerCase(),
+        dob      : dob.value,
+        profile_complete: true
+      };
+
+      const { error } = await supabase
+        .from('users')
+        .update(update)
+        .eq('id', (await supabase.auth.getUser()).data.user.id);
+
+      if (error) return errP.textContent = error.message;
+
+      location.href = '/dashboard.html';
+    });
+  </script>
+</body>
+</html>

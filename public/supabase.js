@@ -7,39 +7,73 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true }
 });
 
-// ======== LOGIN ======== //
-const loginForm   = document.getElementById('loginForm');
-const loginErr    = document.getElementById('error');
-const gSignInBtn  = document.getElementById('googleSignIn');
+/* ——————————————————————————————————————————
+   1. Função que decide a rota pós-login
+——————————————————————————————————————————*/
+async function afterLogin(session) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('profile_complete')
+    .eq('id', session.user.id)
+    .single();
+
+  if (error) {
+    console.error(error);
+    return alert('Erro ao verificar perfil.');
+  }
+
+  location.href = data.profile_complete
+    ? '/dashboard.html'
+    : '/complete-profile.html';
+}
+
+/* ——————————————————————————————————————————
+   2. Verifica sessão assim que a página carrega
+——————————————————————————————————————————*/
+document.addEventListener('DOMContentLoaded', async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) await afterLogin(session);
+});
+
+/* ——————————————————————————————————————————
+   3. LOGIN (e-mail + senha)
+——————————————————————————————————————————*/
+const loginForm  = document.getElementById('loginForm');
+const loginErr   = document.getElementById('error');
+const gSignInBtn = document.getElementById('googleSignIn');
 
 gSignInBtn?.addEventListener('click', () =>
   supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${location.origin}/dashboard.html` }
-  })  // se o usuário não existir, ele será criado automaticamente
+    options: { redirectTo: `${location.origin}` }   // volta para mesma página
+  })
 );
 
 loginForm?.addEventListener('submit', async (e) => {
   e.preventDefault();
   loginErr.textContent = '';
 
-  const email    = e.target.email.value.trim().toLowerCase();
-  const password = e.target.password.value;
+  const { email, password } = e.target;
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.value.trim().toLowerCase(),
+    password: password.value
+  });
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) loginErr.textContent = error.message;
-  else        location.href = '/dashboard.html';
+  if (error) return loginErr.textContent = error.message;
+  await afterLogin(data.session);       // <── AQUI
 });
 
-// ======== SIGN‑UP ======== //
-const signupForm   = document.getElementById('signupForm');
-const signupErr    = document.getElementById('regError');
-const gSignUpBtn   = document.getElementById('googleSignUp');
+/* ——————————————————————————————————————————
+   4. REGISTRO (form clássico)
+——————————————————————————————————————————*/
+const signupForm = document.getElementById('signupForm');
+const signupErr  = document.getElementById('regError');
+const gSignUpBtn = document.getElementById('googleSignUp');
 
 gSignUpBtn?.addEventListener('click', () =>
   supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: `${location.origin}/dashboard.html` }
+    options: { redirectTo: `${location.origin}` }
   })
 );
 
@@ -47,34 +81,18 @@ signupForm?.addEventListener('submit', async (e) => {
   e.preventDefault();
   signupErr.textContent = '';
 
-  const email    = e.target.regEmail.value.trim().toLowerCase();
-  const password = e.target.regPass.value;
-  const dob      = e.target.dob.value;
-
-  // 1) cria usuário
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) return signupErr.textContent = error.message;
-
-  // 2) grava data de nascimento via RPC ou chamada REST
-  await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${data.user.id}`, {
-    method: 'PATCH',
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${data.session.access_token}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal'
-    },
-    body: JSON.stringify({ dob })
+  const { regEmail, regPass, dob } = e.target;
+  const { data, error } = await supabase.auth.signUp({
+    email: regEmail.value.trim().toLowerCase(),
+    password: regPass.value
   });
 
-  // 3) redireciona
-  location.href = '/dashboard.html';
-});
+  if (error) return signupErr.textContent = error.message;
 
-// ======== CALLBACK GUARD ======== //
-(async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session && location.pathname === '/index.html') {
-    location.href = '/dashboard.html';
-  }
-})();
+  // grava infos extras e marca profile_complete = true
+  await supabase.from('users')
+    .update({ dob: dob.value, profile_complete: true })
+    .eq('id', data.user.id);
+
+  await afterLogin(data.session);       // <── AQUI
+});
