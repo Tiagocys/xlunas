@@ -17,28 +17,37 @@ function go(path){
 async function afterLogin(session) {
   const { data, error } = await supabase
     .from('users')
-    .select('profile_complete')
+    .select('name, last_name, username, dob')
     .eq('id', session.user.id)
     .single();
 
-  if (error) return alert('Erro ao verificar perfil.');
+  if (error) {
+    console.error(error);
+    return alert('Erro ao verificar perfil.');
+  }
 
-  if (data.profile_complete)   go('/dashboard.html');
-  else                          go('/complete-profile.html');
+  const needsInfo = !data.name || !data.last_name ||
+                    !data.username || !data.dob;
+
+  const target = needsInfo ? '/complete-profile.html' : '/dashboard.html';
+
+  if (location.pathname !== target) location.href = target;
 }
+
 
 /* ───────────────────────────────────────────────────────────────
    2. Roda uma única verificação de sessão *exceto* em /complete-profile.html
 ─────────────────────────────────────────────────────────────────*/
 document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return;                       // não logado → deixa quieto
+  if (!session) return;
 
-  // Se já estamos na página de completar perfil, não chama afterLogin.
-  if (window.location.pathname === '/complete-profile.html') return;
+  // não chame afterLogin se já estamos na tela de completar perfil
+  if (location.pathname === '/complete-profile.html') return;
 
   await afterLogin(session);
 });
+
 
 /* ——————————————————————————————————————————
    3. LOGIN (e-mail + senha)
