@@ -1,94 +1,141 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Complete seu perfil • Xlunas</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <main class="card">
     <h1>Falta pouco 😉</h1>
-
     <form id="profileForm">
-        <label>Nome
-            <input type="text" id="name" required>
-        </label>
-
-        <label>Sobrenome
-            <input type="text" id="lastName" required>
-        </label>
-
-        <label>Username
-            <input type="text" id="username" pattern="^[a-z0-9._]{3,}$" required>
-        </label>
-
-        <label>Data de nascimento
-            <input type="date" id="dob" required>
-        </label>
-
-        <button type="submit">Salvar e continuar</button>
-        <p id="profErr" class="msg"></p>
+      <label>Nome
+        <input type="text" id="name" required/>
+      </label>
+      <label>Sobrenome
+        <input type="text" id="lastName" required/>
+      </label>
+      <label>Username
+        <input
+          type="text"
+          id="username"
+          pattern="^[a-z0-9._]{3,}$"
+          title="Somente letras, números, ponto ou underline"
+          required
+        />
+      </label>
+      <label>Data de nascimento
+        <input
+          type="date"
+          id="dob"
+          required
+          pattern="\d{4}-\d{2}-\d{2}"
+        />
+      </label>
+      <button type="submit">Salvar e continuar</button>
+      <p id="profErr" class="msg"></p>
     </form>
-
   </main>
 
   <script type="module">
     import { supabase } from './supabase.js';
 
-    const profileForm   = document.getElementById('profileForm');
+    // Captura DOM
     const nameInput     = document.getElementById('name');
     const lastNameInput = document.getElementById('lastName');
     const usernameInput = document.getElementById('username');
     const dobInput      = document.getElementById('dob');
     const errP          = document.getElementById('profErr');
+    const form          = document.getElementById('profileForm');
 
+    // Limita data picker a hoje - 18 anos
+    const today = new Date();
+    const year18Ago = today.getFullYear() - 18;
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    dobInput.max = `${year18Ago}-${mm}-${dd}`;
 
-    // Pré-preencher se já existir algo
+    // Pre-fill (sem redirecionar)
     (async () => {
-        // espera até que o Supabase traga a sessão (máx. ~100 ms)
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-        errP.textContent = 'Sessão não encontrada. Faça login novamente.';
-        return;                      // mas NÃO redireciona
-        }
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (!session) {
+        errP.textContent = 'Sessão não encontrada.';
+        return;
+      }
 
-        const { data, error } = await supabase
+      const { data, error } = await supabase
         .from('users')
-        .select('name, last_name, username, dob')
+        .select('name,last_name,username,dob')
         .eq('id', session.user.id)
         .single();
+      if (error) return console.error(error);
 
-
-        if (error) return console.error(error);
-
-        nameInput.value     = data?.name       ?? '';
-        lastNameInput.value = data?.last_name  ?? '';
-        usernameInput.value = data?.username   ?? '';
-        dobInput.value      = data?.dob        ?? '';
-
+      nameInput.value     = data.name ?? '';
+      lastNameInput.value = data.last_name ?? '';
+      usernameInput.value = data.username ?? '';
+      dobInput.value      = data.dob ?? '';
     })();
 
-    profileForm.addEventListener('submit', async (e) => {
+    // Submit
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errP.textContent = '';
 
-    const update = {
-        name     : nameInput.value.trim(),
-        last_name: lastNameInput.value.trim(),
-        username : usernameInput.value.trim().toLowerCase(),
-        dob      : dobInput.value
-    };
+      // 1. Verifica preenchimento
+      if (!nameInput.value || !lastNameInput.value || !usernameInput.value) {
+        errP.textContent = 'Preencha todos os campos.';
+        return;
+      }
 
+      // 2. Valida formato de data
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dobInput.value)) {
+        errP.textContent = 'Data inválida. Use YYYY-MM-DD.';
+        return;
+      }
 
-    await supabase
-    .from('users')
-    .update(update)
-    .eq('id', session.user.id);
+      // 3. Verifica idade ≥18
+      const [Y, M, D] = dobInput.value.split('-').map(Number);
+      const birth = new Date(Y, M - 1, D);
+      let age = today.getFullYear() - birth.getFullYear();
+      const mDiff = today.getMonth() - birth.getMonth();
+      if (mDiff < 0 || (mDiff === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      if (age < 18) {
+        errP.textContent = 'Você precisa ter pelo menos 18 anos.';
+        return;
+      }
 
-      if (error) return errP.textContent = error.message;
+      // 4. Pega session e grava no Supabase
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (!session) {
+        errP.textContent = 'Sessão expirada. Faça login novamente.';
+        return;
+      }
 
-      location.href = '/dashboard.html';
+      const { error } = await supabase
+        .from('users')
+        .update({
+          name      : nameInput.value.trim(),
+          last_name : lastNameInput.value.trim(),
+          username  : usernameInput.value.trim().toLowerCase(),
+          dob       : dobInput.value
+        })
+        .eq('id', session.user.id);
+
+      if (error) {
+        console.error(error);
+        errP.textContent = error.message;
+        return;
+      }
+
+      // 5. Redireciona
+      window.location.href = '/dashboard';
     });
   </script>
 </body>
