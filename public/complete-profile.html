@@ -40,21 +40,24 @@
 
     // Pré-preencher se já existir algo
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) location.href = '/index.html';
+        // espera até que o Supabase traga a sessão (máx. ~100 ms)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+        errP.textContent = 'Sessão não encontrada. Faça login novamente.';
+        return;                      // mas NÃO redireciona
+        }
 
-      const { data } = await supabase
+        const { data, error } = await supabase
         .from('users')
         .select('full_name, username, dob')
         .eq('id', session.user.id)
         .single();
 
-      if (data) {
-        fullName.value = data.full_name ?? '';
-        username.value = data.username   ?? '';
-        dob.value      = data.dob        ?? '';
-     }
+        if (error) return console.error(error);
 
+        fullName.value = data?.full_name ?? '';
+        username.value = data?.username   ?? '';
+        dob.value      = data?.dob        ?? '';
     })();
 
     form.addEventListener('submit', async (e) => {
