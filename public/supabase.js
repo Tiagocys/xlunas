@@ -27,12 +27,17 @@ async function afterLogin(session) {
   else                          go('/complete-profile.html');
 }
 
-/* ——————————————————————————————————————————
-   2. Verifica sessão assim que a página carrega
-——————————————————————————————————————————*/
+/* ───────────────────────────────────────────────────────────────
+   2. Roda uma única verificação de sessão *exceto* em /complete-profile.html
+─────────────────────────────────────────────────────────────────*/
 document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) await afterLogin(session);
+  if (!session) return;                       // não logado → deixa quieto
+
+  // Se já estamos na página de completar perfil, não chama afterLogin.
+  if (window.location.pathname === '/complete-profile.html') return;
+
+  await afterLogin(session);
 });
 
 /* ——————————————————————————————————————————
