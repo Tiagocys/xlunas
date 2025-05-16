@@ -56,10 +56,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
 
-  // não chame afterLogin se já estamos na tela de completar perfil
-  // não chame afterLogin se já estamos em qualquer URL de complete-profile
   const path = location.pathname.toLowerCase();
-  if (path === '/complete-profile' || path === '/complete-profile.html') {
+  if (
+    path === '/complete-profile'   ||
+    path === '/complete-profile.html' ||
+    path === '/forgot-password'    ||
+    path === '/forgot-password.html' ||
+    path === '/reset-password'     ||
+    path === '/reset-password.html'
+  ) {
     return;
   }
 
