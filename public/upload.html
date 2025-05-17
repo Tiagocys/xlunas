@@ -67,10 +67,6 @@
           filename: file.name,
           filetype: file.type
         },
-        headers: {
-          // passe o mesmo token que seu Worker usou
-          Authorization: `Bearer ${YOUR_STREAM_API_TOKEN}`
-        },
         onError(error) {
           msgP.textContent = `Upload falhou: ${error}`;
           progress.hidden = true;
