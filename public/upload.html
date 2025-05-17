@@ -28,7 +28,7 @@
       <p id="msg" class="msg"></p>
     </form>
   </main>
-  
+
   <script src="https://unpkg.com/tus-js-client@^2/dist/tus.js"></script>
   <script type="module">
     import { supabase } from './supabase.js';
@@ -49,48 +49,51 @@
         ? 'https://x-lunas.cysneirostiago.workers.dev/stream-direct-upload'
         : '/image-direct-upload';
 
-      // 1) Pega uploadURL + uid no Worker
-      const tokenRes = await fetch(endpoint, { method: 'POST' });
+      // 1) pega uploadURL e uid
+      const tokenRes = await fetch(endpoint, { method:'POST' });
       if (!tokenRes.ok) {
-        msgP.textContent = 'Erro gerando token de upload.';
+        msgP.textContent = 'Erro ao gerar token de upload.';
         return;
       }
       const { uploadURL, uid } = await tokenRes.json();
 
-      // 2) Usa tus-js-client para o upload resumable
+      // 2) configura o TUS corretamente
       progress.hidden = false;
       const upload = new tus.Upload(file, {
-        endpoint: uploadURL,
-        retryDelays: [0, 1000, 3000, 5000],
+        // <—> USE uploadUrl, não endpoint
+        uploadUrl: uploadURL,
+        retryDelays: [0,1000,3000,5000],
         metadata: {
           filename: file.name,
           filetype: file.type
         },
-        onError: (error) => {
+        headers: {
+          // passe o mesmo token que seu Worker usou
+          Authorization: `Bearer ${YOUR_STREAM_API_TOKEN}`
+        },
+        onError(error) {
           msgP.textContent = `Upload falhou: ${error}`;
           progress.hidden = true;
         },
-        onProgress: (bytesUploaded, bytesTotal) => {
+        onProgress(bytesUploaded, bytesTotal) {
           const pct = ((bytesUploaded/bytesTotal)*100).toFixed(2);
           progress.value = pct;
         },
         onSuccess: async () => {
-          // 3) Grava no Supabase
-          const {
-            data: { session },
-            error: sessErr
-          } = await supabase.auth.getSession();
-          if (sessErr || !session) {
+          // 3) grava no Supabase
+          const { data:{session}, error:se } = await supabase.auth.getSession();
+          if (se || !session) {
             msgP.textContent = 'Sessão expirada.';
             return;
           }
-
+          const mediaUrl  = isVideo ? uid : uploadURL;
+          const mediaType = isVideo ? 'video' : 'image';
           const { error } = await supabase
             .from('posts')
             .insert({
               creator_id : session.user.id,
-              media_url  : uid,
-              media_type : isVideo ? 'video' : 'image',
+              media_url  : mediaUrl,
+              media_type : mediaType,
               title      : title.value.trim(),
               description: description.value.trim(),
               is_private : true
@@ -106,6 +109,7 @@
 
       upload.start();
     });
+
   </script>
 </body>
 </html>
