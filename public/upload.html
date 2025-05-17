@@ -184,10 +184,7 @@
       xhr.onload = async () => {
         if (xhr.status !== 200) {
           msgP.textContent = `Falha no upload: ${xhr.status}`;
-          progress.hidden = true;
-          const btn = document.getElementById('uploadBtn');
-          btn.disabled = false;
-          btn.textContent = 'Enviar';
+          progress.hidden = true;          
           return;
         }
         progress.value = 100;
@@ -210,17 +207,11 @@
           msgP.textContent = 'Upload concluído!';
           form.reset();
         }
-        progress.hidden = true;
-        const btn = document.getElementById('uploadBtn');
-        btn.disabled = false;
-        btn.textContent = 'Enviar';
+        progress.hidden = true;        
       };
       xhr.onerror = () => {
         msgP.textContent = 'Erro de rede.';
-        progress.hidden = true;
-        const btn = document.getElementById('uploadBtn');
-        btn.disabled = false;
-        btn.textContent = 'Enviar';
+        progress.hidden = true;        
       };
       const formData = new FormData();
       formData.append('file', file);
