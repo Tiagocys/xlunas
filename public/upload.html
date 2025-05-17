@@ -109,33 +109,27 @@
       // 2) Free: checa limites diários via duração de vídeo
       const isVideo = file.type.startsWith('video/');
       let durationMins = 0;
-      if (plan === 'free' && isVideo) {
-        durationMins = await new Promise((resolve) => {
-          const v = document.createElement('video');
-          v.preload = 'metadata';
-          v.src = URL.createObjectURL(file);
-          v.onloadedmetadata = () => {
-            URL.revokeObjectURL(v.src);
-            resolve(Math.ceil(v.duration / 60));
-          };
-        });
-        if (durationMins > 5) {
-          msgP.textContent = 'No plano Free, máximo de 5 min por vídeo.';
-          return;
-        }
-        const { data: allowed, error: quotaErr } = await supabase.rpc('check_and_increment_usage', {
-          p_user: userId,
-          p_minutes: durationMins
-        });
+      if (isVideo) {
+        // calcula minutes (já feito acima)
+        const { data: allowed, error: quotaErr } = await supabase.rpc(
+          'check_and_increment_usage',
+          { p_user: userId, p_minutes: durationMins }
+        );
         if (quotaErr) {
           msgP.textContent = 'Erro ao verificar cota.';
+          sendBtn.disabled = false;
           return;
         }
         if (!allowed) {
-          msgP.textContent = 'Limite diário atingido: 1 vídeo ou 5 min.';
+          msgP.textContent =
+            plan === 'free'
+              ? 'Limite diário Free (1 vídeo ou 5 min) atingido.'
+              : 'Limite diário Premium (10 vídeos ou 30 min) atingido.';
+          sendBtn.disabled = false;
           return;
         }
       }
+
 
       // 3) Upload de thumbnail (após extrair ou ler do input)
       let thumbUrl = null;
