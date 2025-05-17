@@ -124,13 +124,15 @@
 
         // 2) Limite por vídeo (defensivo)
         if (plan === 'free' && durationMins > 5) {
-          msgP.textContent = 'No plano Free só são permitidos vídeos de até 5 minutos.';
+          msgP.textContent = 'Erro ao enviar: você pode enviar até 1 vídeo de no máximo 5 minutos por dia.';
           sendBtn.disabled = false;
+          sendBtn.textContent = 'Enviar'
           return;
         }
         if (plan === 'premium' && durationMins > 30) {
-          msgP.textContent = 'No plano Premium cada vídeo pode ter no máximo 30 minutos.';
+          msgP.textContent = 'Erro ao enviar: você pode enviar no máximo 30 minutos de vídeo e até 10 vídeos por dia.';
           sendBtn.disabled = false;
+          sendBtn.textContent = 'Enviar'
           return;
         }
 
