@@ -27,7 +27,7 @@
         <textarea id="description" maxlength="500" rows="3"></textarea>
       </label>
 
-      <button type="submit" id="uploadBtn">Enviar</button>
+      <button type="submit">Enviar</button>
       <progress id="progress" value="0" max="100" hidden></progress>
       <p id="msg" class="msg"></p>
     </form>
@@ -136,24 +136,19 @@
       // 3) Upload de thumbnail (após extrair ou ler do input)
       let thumbUrl = null;
       try {
-        const thumbPath = `${userId}/${Date.now()}.png`;
-
-        // faz upload
-        const { error: thumbErr } = await supabase.storage
+        const thumbFile = thumbInput.files[0] ?? await extractFrame(file);
+        // faça o upload para o bucket “thumbnails”
+        const thumbPath = `thumbnails/${userId}/${Date.now()}.png`;
+        const { data: thumbData, error: thumbErr } = await supabase
+          .storage
           .from('thumbnails')
-          .upload(thumbPath, thumbFile, {
-            cacheControl: '3600',
-            contentType: 'image/png',
-            upsert: false
-          });
+          .upload(thumbPath, thumbFile, { cacheControl: '3600', upsert: false });
 
         if (thumbErr) throw thumbErr;
-
-        // url pública
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = supabase
+          .storage
           .from('thumbnails')
           .getPublicUrl(thumbPath);
-
         thumbUrl = publicUrl;
       } catch (err) {
         console.error('Erro no upload da thumbnail:', err);
@@ -184,7 +179,7 @@
       xhr.onload = async () => {
         if (xhr.status !== 200) {
           msgP.textContent = `Falha no upload: ${xhr.status}`;
-          progress.hidden = true;          
+          progress.hidden = true;
           return;
         }
         progress.value = 100;
@@ -207,11 +202,11 @@
           msgP.textContent = 'Upload concluído!';
           form.reset();
         }
-        progress.hidden = true;        
+        progress.hidden = true;
       };
       xhr.onerror = () => {
         msgP.textContent = 'Erro de rede.';
-        progress.hidden = true;        
+        progress.hidden = true;
       };
       const formData = new FormData();
       formData.append('file', file);
