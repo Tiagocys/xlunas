@@ -83,6 +83,7 @@
       e.preventDefault();
       sendBtn.disabled = true;          // <─ trava logo no primeiro clique
       sendBtn.textContent = 'Enviando...'
+      sendBtn.style.backgroundColor = "#ff7575";
       msgP.textContent = '';
       const file = fileInput.files[0];
       if (!file) return;
@@ -184,6 +185,7 @@
           msgP.textContent = `Falha no upload: ${xhr.status}`;
           progress.hidden = true;
           sendBtn.disabled = false;         // <─ libera de novo
+          sendBtn.textContent = "Enviar";
           return;
         }
         progress.value = 100;
@@ -208,11 +210,13 @@
         }
         progress.hidden = true;
         sendBtn.disabled = false;         // <─ libera de novo
+        sendBtn.textContent = "Enviar";
       };
       xhr.onerror = () => {
         msgP.textContent = 'Erro de rede.';
         progress.hidden = true;
         sendBtn.disabled = false;         // <─ libera de novo
+        sendBtn.textContent = "Enviar";
       };
       const formData = new FormData();
       formData.append('file', file);
