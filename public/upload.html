@@ -28,7 +28,8 @@
       <p id="msg" class="msg"></p>
     </form>
   </main>
-
+  
+  <script src="https://unpkg.com/tus-js-client@^2/dist/tus.js"></script>
   <script type="module">
     import { supabase } from './supabase.js';
 
@@ -43,66 +44,67 @@
       const file = fileInput.files[0];
       if (!file) return;
 
-      const isVideo = file.type.startsWith('video/');
+      const isVideo  = file.type.startsWith('video/');
       const endpoint = isVideo
         ? 'https://x-lunas.cysneirostiago.workers.dev/stream-direct-upload'
         : '/image-direct-upload';
 
-      // 1) Solicita uploadURL e uid ao Worker
+      // 1) Pega uploadURL + uid no Worker
       const tokenRes = await fetch(endpoint, { method: 'POST' });
       if (!tokenRes.ok) {
-        msgP.textContent = 'Erro ao gerar token de upload.';
+        msgP.textContent = 'Erro gerando token de upload.';
         return;
       }
       const { uploadURL, uid } = await tokenRes.json();
 
-      // 2) Upload do arquivo
+      // 2) Usa tus-js-client para o upload resumable
       progress.hidden = false;
-      try {
-        const uploadRes = await fetch(uploadURL, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        });
-        if (!uploadRes.ok) throw new Error('Falha no upload');
-        progress.value = 100;
-      } catch (err) {
-        msgP.textContent = err.message;
-        progress.hidden = true;
-        return;
-      }
+      const upload = new tus.Upload(file, {
+        endpoint: uploadURL,
+        retryDelays: [0, 1000, 3000, 5000],
+        metadata: {
+          filename: file.name,
+          filetype: file.type
+        },
+        onError: (error) => {
+          msgP.textContent = `Upload falhou: ${error}`;
+          progress.hidden = true;
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          const pct = ((bytesUploaded/bytesTotal)*100).toFixed(2);
+          progress.value = pct;
+        },
+        onSuccess: async () => {
+          // 3) Grava no Supabase
+          const {
+            data: { session },
+            error: sessErr
+          } = await supabase.auth.getSession();
+          if (sessErr || !session) {
+            msgP.textContent = 'Sessão expirada.';
+            return;
+          }
 
-      // 3) Grava metadados em Supabase
-      const {
-        data: { session },
-        error: sessErr
-      } = await supabase.auth.getSession();
-      if (sessErr || !session) {
-        msgP.textContent = 'Sessão expirada.';
-        return;
-      }
+          const { error } = await supabase
+            .from('posts')
+            .insert({
+              creator_id : session.user.id,
+              media_url  : uid,
+              media_type : isVideo ? 'video' : 'image',
+              title      : title.value.trim(),
+              description: description.value.trim(),
+              is_private : true
+            });
+          if (error) msgP.textContent = error.message;
+          else {
+            msgP.textContent = 'Upload concluído!';
+            form.reset();
+          }
+          progress.hidden = true;
+        }
+      });
 
-      const mediaType = isVideo ? 'video' : 'image';
-      const mediaUrl  = isVideo ? uid : uploadURL;
-
-      const { error } = await supabase
-        .from('posts')
-        .insert({
-          creator_id: session.user.id,
-          media_url: mediaUrl,
-          media_type: mediaType,
-          title: document.getElementById('title').value.trim(),
-          description: document.getElementById('description').value.trim(),
-          is_private: true
-        });
-
-      if (error) {
-        msgP.textContent = error.message;
-      } else {
-        msgP.textContent = 'Upload concluído!';
-        form.reset();
-      }
-      progress.hidden = true;
+      upload.start();
     });
   </script>
 </body>
