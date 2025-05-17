@@ -106,15 +106,40 @@
       }
       const plan = userData.plan;
 
-      // 2) Free: checa limites diários via duração de vídeo
+      // 2)-- CÁLCULO + LIMITES + RPC ----------------
       const isVideo = file.type.startsWith('video/');
       let durationMins = 0;
+
       if (isVideo) {
-        // calcula minutes (já feito acima)
+        // 1) Calcula a duração em minutos
+        durationMins = await new Promise((resolve) => {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.src = URL.createObjectURL(file);
+          v.onloadedmetadata = () => {
+            URL.revokeObjectURL(v.src);
+            resolve(Math.ceil(v.duration / 60));          // arredonda pra cima
+          };
+        });
+
+        // 2) Limite por vídeo (defensivo)
+        if (plan === 'free' && durationMins > 5) {
+          msgP.textContent = 'No plano Free só são permitidos vídeos de até 5 minutos.';
+          sendBtn.disabled = false;
+          return;
+        }
+        if (plan === 'premium' && durationMins > 30) {
+          msgP.textContent = 'No plano Premium cada vídeo pode ter no máximo 30 minutos.';
+          sendBtn.disabled = false;
+          return;
+        }
+
+        // 3) Verifica/incrementa a cota diária acumulada
         const { data: allowed, error: quotaErr } = await supabase.rpc(
           'check_and_increment_usage',
           { p_user: userId, p_minutes: durationMins }
         );
+
         if (quotaErr) {
           msgP.textContent = 'Erro ao verificar cota.';
           sendBtn.disabled = false;
@@ -123,12 +148,14 @@
         if (!allowed) {
           msgP.textContent =
             plan === 'free'
-              ? 'Limite diário Free (1 vídeo ou 5 min) atingido.'
-              : 'Limite diário Premium (10 vídeos ou 30 min) atingido.';
+              ? 'Limite diário Free atingido (1 vídeo ou 5 min).'
+              : 'Limite diário Premium atingido (10 vídeos ou 30 min no total).';
           sendBtn.disabled = false;
           return;
         }
       }
+      // ------------- FIM DO BLOCO DE VÍDEO --------------------
+
 
 
       // 3) Upload de thumbnail (após extrair ou ler do input)
