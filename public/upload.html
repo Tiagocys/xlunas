@@ -29,14 +29,15 @@
     </form>
   </main>
 
-  <script src="https://unpkg.com/tus-js-client@^2/dist/tus.js"></script>
   <script type="module">
     import { supabase } from './supabase.js';
 
-    const form      = document.getElementById('uploadForm');
-    const fileInput = document.getElementById('fileInput');
-    const progress  = document.getElementById('progress');
-    const msgP      = document.getElementById('msg');
+    const form       = document.getElementById('uploadForm');
+    const fileInput  = document.getElementById('fileInput');
+    const titleInput = document.getElementById('title');
+    const descInput  = document.getElementById('description');
+    const progress   = document.getElementById('progress');
+    const msgP       = document.getElementById('msg');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -44,68 +45,68 @@
       const file = fileInput.files[0];
       if (!file) return;
 
-      const isVideo  = file.type.startsWith('video/');
+      const isVideo = file.type.startsWith('video/');
       const endpoint = isVideo
         ? 'https://x-lunas.cysneirostiago.workers.dev/stream-direct-upload'
         : '/image-direct-upload';
 
-      // 1) pega uploadURL e uid
-      const tokenRes = await fetch(endpoint, { method:'POST' });
+      // 1) Solicita uploadURL e uid ao Worker
+      const tokenRes = await fetch(endpoint, { method: 'POST' });
       if (!tokenRes.ok) {
         msgP.textContent = 'Erro ao gerar token de upload.';
         return;
       }
       const { uploadURL, uid } = await tokenRes.json();
 
-      // 2) configura o TUS corretamente
+      // 2) Faz upload via XHR para suportar progresso
       progress.hidden = false;
-      const upload = new tus.Upload(file, {
-        // <—> USE uploadUrl, não endpoint
-        uploadUrl: uploadURL,
-        retryDelays: [0,1000,3000,5000],
-        metadata: {
-          filename: file.name,
-          filetype: file.type
-        },
-        onError(error) {
-          msgP.textContent = `Upload falhou: ${error}`;
-          progress.hidden = true;
-        },
-        onProgress(bytesUploaded, bytesTotal) {
-          const pct = ((bytesUploaded/bytesTotal)*100).toFixed(2);
-          progress.value = pct;
-        },
-        onSuccess: async () => {
-          // 3) grava no Supabase
-          const { data:{session}, error:se } = await supabase.auth.getSession();
-          if (se || !session) {
-            msgP.textContent = 'Sessão expirada.';
-            return;
-          }
-          const mediaUrl  = isVideo ? uid : uploadURL;
-          const mediaType = isVideo ? 'video' : 'image';
-          const { error } = await supabase
-            .from('posts')
-            .insert({
-              creator_id : session.user.id,
-              media_url  : mediaUrl,
-              media_type : mediaType,
-              title      : title.value.trim(),
-              description: description.value.trim(),
-              is_private : true
-            });
-          if (error) msgP.textContent = error.message;
-          else {
-            msgP.textContent = 'Upload concluído!';
-            form.reset();
-          }
-          progress.hidden = true;
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', uploadURL);
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          progress.value = ((event.loaded / event.total) * 100).toFixed(2);
         }
-      });
-
-      upload.start();
+      };
+      xhr.onload = async () => {
+        progress.value = 100;
+        if (xhr.status !== 200) {
+          msgP.textContent = `Falha no upload: ${xhr.status}`;
+          progress.hidden = true;
+          return;
+        }
+        // 3) Grava metadados em Supabase
+        const { data: { session }, error: sessErr } = await supabase.auth.getSession();
+        if (sessErr || !session) {
+          msgP.textContent = 'Sessão expirada.';
+          return;
+        }
+        const mediaUrl  = isVideo ? uid : uploadURL;
+        const mediaType = isVideo ? 'video' : 'image';
+        const { error } = await supabase
+          .from('posts')
+          .insert({
+            creator_id : session.user.id,
+            media_url  : mediaUrl,
+            media_type : mediaType,
+            title      : titleInput.value.trim(),
+            description: descInput.value.trim(),
+            is_private : true
+          });
+        if (error) msgP.textContent = error.message;
+        else {
+          msgP.textContent = 'Upload concluído!';
+          form.reset();
+        }
+        progress.hidden = true;
+      };
+      xhr.onerror = () => {
+        msgP.textContent = 'Erro de rede no upload.';
+        progress.hidden = true;
+      };
+      const formData = new FormData();
+      formData.append('file', file);
+      xhr.send(formData);
     });
-
   </script>
 </body>
 </html>
