@@ -65,7 +65,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     path === '/reset-password'     ||
     path === '/reset-password.html' ||
     path === '/upload'              ||
-    path === '/upload.html'
+    path === '/upload.html'         ||
+    path === '/verify'              ||
+    path === '/verify.html'
   ) {
     return;
   }
