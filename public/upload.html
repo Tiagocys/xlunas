@@ -27,7 +27,7 @@
         <textarea id="description" maxlength="500" rows="3"></textarea>
       </label>
 
-      <button type="submit">Enviar</button>
+      <button type="submit" id="sendBtn">Enviar</button>
       <progress id="progress" value="0" max="100" hidden></progress>
       <p id="msg" class="msg"></p>
     </form>
@@ -43,6 +43,7 @@
     const descInput  = document.getElementById('description');
     const progress   = document.getElementById('progress');
     const msgP       = document.getElementById('msg');
+    const sendBtn = document.getElementById('sendBtn');
 
     // 1) Novo extractFrame, garantindo que onloadedmetadata seja definido antes do src
     async function extractFrame(file) {
@@ -80,6 +81,8 @@
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      sendBtn.disabled = true;          // <─ trava logo no primeiro clique
+      sendBtn.textContent = 'Enviando...'
       msgP.textContent = '';
       const file = fileInput.files[0];
       if (!file) return;
@@ -180,6 +183,7 @@
         if (xhr.status !== 200) {
           msgP.textContent = `Falha no upload: ${xhr.status}`;
           progress.hidden = true;
+          sendBtn.disabled = false;         // <─ libera de novo
           return;
         }
         progress.value = 100;
@@ -203,10 +207,12 @@
           form.reset();
         }
         progress.hidden = true;
+        sendBtn.disabled = false;         // <─ libera de novo
       };
       xhr.onerror = () => {
         msgP.textContent = 'Erro de rede.';
         progress.hidden = true;
+        sendBtn.disabled = false;         // <─ libera de novo
       };
       const formData = new FormData();
       formData.append('file', file);
