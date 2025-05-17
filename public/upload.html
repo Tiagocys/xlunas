@@ -45,12 +45,64 @@
       const file = fileInput.files[0];
       if (!file) return;
 
+      // 1) Verifica sessão
+      const { data: { session }, error: sessErr } = await supabase.auth.getSession();
+      if (sessErr || !session) {
+        msgP.textContent = 'Sessão expirada. Faça login novamente.';
+        return;
+      }
+      const userId = session.user.id;
+
+      // 2) Busca plano do usuário
+      const { data: userData, error: userErr } = await supabase
+        .from('users')
+        .select('plan')
+        .eq('id', userId)
+        .single();
+      if (userErr) {
+        msgP.textContent = 'Erro ao verificar plano do usuário.';
+        return;
+      }
+      const plan = userData.plan;
+
+      // 3) Se for Free e vídeo, validamos limites
       const isVideo = file.type.startsWith('video/');
+      let durationMins = 0;
+      if (plan === 'free' && isVideo) {
+        // 3a) extrai duração do vídeo via elemento HTML
+        durationMins = await new Promise((resolve) => {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.src = URL.createObjectURL(file);
+          video.onloadedmetadata = () => {
+            URL.revokeObjectURL(video.src);
+            const mins = Math.ceil(video.duration / 60);
+            resolve(mins);
+          };
+        });
+        if (durationMins > 5) {
+          msgP.textContent = 'No plano Free só é permitido upload de vídeos de até 5 minutos.';
+          return;
+        }
+        // 3b) chama RPC para checar e incrementar uso diário
+        const { data: quotaOK, error: quotaErr } = await supabase.rpc('check_and_increment_usage', {
+          p_user: userId,
+          p_minutes: durationMins
+        });
+        if (quotaErr) {
+          msgP.textContent = 'Erro ao verificar quota diária.';
+          return;
+        }
+        if (!quotaOK) {
+          msgP.textContent = 'Limite diário atingido para o plano Free: 1 vídeo ou 5 min.';
+          return;
+        }
+      }
+
+      // 4) Solicita uploadURL e uid ao Worker
       const endpoint = isVideo
         ? 'https://x-lunas.cysneirostiago.workers.dev/stream-direct-upload'
         : '/image-direct-upload';
-
-      // 1) Solicita uploadURL e uid ao Worker
       const tokenRes = await fetch(endpoint, { method: 'POST' });
       if (!tokenRes.ok) {
         msgP.textContent = 'Erro ao gerar token de upload.';
@@ -58,7 +110,7 @@
       }
       const { uploadURL, uid } = await tokenRes.json();
 
-      // 2) Faz upload via XHR para suportar progresso
+      // 5) Faz upload via XHR e FormData
       progress.hidden = false;
       const xhr = new XMLHttpRequest();
       xhr.open('POST', uploadURL);
@@ -74,18 +126,13 @@
           progress.hidden = true;
           return;
         }
-        // 3) Grava metadados em Supabase
-        const { data: { session }, error: sessErr } = await supabase.auth.getSession();
-        if (sessErr || !session) {
-          msgP.textContent = 'Sessão expirada.';
-          return;
-        }
-        const mediaUrl  = isVideo ? uid : uploadURL;
+        // 6) Grava metadados em Supabase
         const mediaType = isVideo ? 'video' : 'image';
+        const mediaUrl  = isVideo ? uid : uploadURL;
         const { error } = await supabase
           .from('posts')
           .insert({
-            creator_id : session.user.id,
+            creator_id : userId,
             media_url  : mediaUrl,
             media_type : mediaType,
             title      : titleInput.value.trim(),
