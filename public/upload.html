@@ -83,7 +83,7 @@
       e.preventDefault();
       sendBtn.disabled = true;          // <─ trava logo no primeiro clique
       sendBtn.textContent = 'Enviando...'
-      sendBtn.style.backgroundColor = "#ff7575";
+      //sendBtn.style.backgroundColor = "#ff7575";
       msgP.textContent = '';
       const file = fileInput.files[0];
       if (!file) return;
@@ -150,9 +150,10 @@
         if (!allowed) {
           msgP.textContent =
             plan === 'free'
-              ? 'Limite diário Free atingido (1 vídeo ou 5 min).'
-              : 'Limite diário Premium atingido (10 vídeos ou 30 min no total).';
+              ? 'Erro ao enviar: você pode enviar até 1 vídeo de no máximo 5 minutos por dia.'
+              : 'Erro ao enviar: você pode enviar no máximo 30 minutos de vídeo e até 10 vídeos por dia.';
           sendBtn.disabled = false;
+          sendBtn.textContent = 'Enviar'
           return;
         }
       }
