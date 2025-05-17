@@ -15,6 +15,10 @@
         <input type="file" id="fileInput" accept="video/*,image/*" required />
       </label>
 
+      <label>Thumbnail (opcional)
+        <input type="file" id="thumbInput" accept="image/*" />
+      </label>
+
       <label>Título
         <input type="text" id="title" maxlength="120" required />
       </label>
@@ -34,10 +38,35 @@
 
     const form       = document.getElementById('uploadForm');
     const fileInput  = document.getElementById('fileInput');
+    const thumbInput = document.getElementById('thumbInput');
     const titleInput = document.getElementById('title');
     const descInput  = document.getElementById('description');
     const progress   = document.getElementById('progress');
     const msgP       = document.getElementById('msg');
+
+    // Gera thumbnail padrão a partir do vídeo
+    async function extractFrame(file) {
+      return new Promise((resolve) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.src = URL.createObjectURL(file);
+        video.currentTime = 1;
+        video.onloadedmetadata = () => {
+          URL.revokeObjectURL(video.src);
+          video.currentTime = Math.min(1, video.duration / 2);
+        };
+        video.onseeked = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            resolve(new File([blob], 'thumbnail.png', { type: 'image/png' }));
+          }, 'image/png');
+        };
+      });
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -45,57 +74,68 @@
       const file = fileInput.files[0];
       if (!file) return;
 
-      // 1) Verifica sessão
+      // 1) Verifica sessão e plano
       const { data: { session }, error: sessErr } = await supabase.auth.getSession();
       if (sessErr || !session) {
         msgP.textContent = 'Sessão expirada. Faça login novamente.';
         return;
       }
       const userId = session.user.id;
-
-      // 2) Busca plano do usuário
       const { data: userData, error: userErr } = await supabase
         .from('users')
         .select('plan')
         .eq('id', userId)
         .single();
       if (userErr) {
-        msgP.textContent = 'Erro ao verificar plano do usuário.';
+        msgP.textContent = 'Erro ao verificar plano.';
         return;
       }
       const plan = userData.plan;
 
-      // 3) Se for Free e vídeo, validamos limites
+      // 2) Free: checa limites diários via duração de vídeo
       const isVideo = file.type.startsWith('video/');
       let durationMins = 0;
       if (plan === 'free' && isVideo) {
-        // 3a) extrai duração do vídeo via elemento HTML
         durationMins = await new Promise((resolve) => {
-          const video = document.createElement('video');
-          video.preload = 'metadata';
-          video.src = URL.createObjectURL(file);
-          video.onloadedmetadata = () => {
-            URL.revokeObjectURL(video.src);
-            const mins = Math.ceil(video.duration / 60);
-            resolve(mins);
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.src = URL.createObjectURL(file);
+          v.onloadedmetadata = () => {
+            URL.revokeObjectURL(v.src);
+            resolve(Math.ceil(v.duration / 60));
           };
         });
         if (durationMins > 5) {
-          msgP.textContent = 'No plano Free só é permitido upload de vídeos de até 5 minutos.';
+          msgP.textContent = 'No plano Free, máximo de 5 min por vídeo.';
           return;
         }
-        // 3b) chama RPC para checar e incrementar uso diário
-        const { data: quotaOK, error: quotaErr } = await supabase.rpc('check_and_increment_usage', {
+        const { data: allowed, error: quotaErr } = await supabase.rpc('check_and_increment_usage', {
           p_user: userId,
           p_minutes: durationMins
         });
         if (quotaErr) {
-          msgP.textContent = 'Erro ao verificar quota diária.';
+          msgP.textContent = 'Erro ao verificar cota.';
           return;
         }
-        if (!quotaOK) {
-          msgP.textContent = 'Limite diário atingido para o plano Free: 1 vídeo ou 5 min.';
+        if (!allowed) {
+          msgP.textContent = 'Limite diário atingido: 1 vídeo ou 5 min.';
           return;
+        }
+      }
+
+      // 3) Geração/Upload de thumbnail
+      let thumbUrl = null;
+      const thumbFile = thumbInput.files[0] || (isVideo ? await extractFrame(file) : null);
+      if (thumbFile) {
+        const thumbPath = `thumbnails/${userId}/${Date.now()}.png`;
+        const { data: thumbData, error: thumbErr } = await supabase.storage
+          .from('thumbnails')
+          .upload(thumbPath, thumbFile, { cacheControl: '3600', upsert: true });
+        if (!thumbErr) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('thumbnails')
+            .getPublicUrl(thumbPath);
+          thumbUrl = publicUrl;
         }
       }
 
@@ -105,39 +145,40 @@
         : '/image-direct-upload';
       const tokenRes = await fetch(endpoint, { method: 'POST' });
       if (!tokenRes.ok) {
-        msgP.textContent = 'Erro ao gerar token de upload.';
+        msgP.textContent = 'Erro ao gerar token.';
         return;
       }
       const { uploadURL, uid } = await tokenRes.json();
 
-      // 5) Faz upload via XHR e FormData
+      // 5) Upload via XHR
       progress.hidden = false;
       const xhr = new XMLHttpRequest();
       xhr.open('POST', uploadURL);
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          progress.value = ((event.loaded / event.total) * 100).toFixed(2);
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          progress.value = ((ev.loaded / ev.total) * 100).toFixed(2);
         }
       };
       xhr.onload = async () => {
-        progress.value = 100;
         if (xhr.status !== 200) {
           msgP.textContent = `Falha no upload: ${xhr.status}`;
           progress.hidden = true;
           return;
         }
+        progress.value = 100;
         // 6) Grava metadados em Supabase
         const mediaType = isVideo ? 'video' : 'image';
         const mediaUrl  = isVideo ? uid : uploadURL;
         const { error } = await supabase
           .from('posts')
           .insert({
-            creator_id : userId,
-            media_url  : mediaUrl,
-            media_type : mediaType,
-            title      : titleInput.value.trim(),
-            description: descInput.value.trim(),
-            is_private : true
+            creator_id   : userId,
+            media_url    : mediaUrl,
+            media_type   : mediaType,
+            title        : titleInput.value.trim(),
+            description  : descInput.value.trim(),
+            thumbnail_url: thumbUrl,
+            is_private   : true
           });
         if (error) msgP.textContent = error.message;
         else {
@@ -147,7 +188,7 @@
         progress.hidden = true;
       };
       xhr.onerror = () => {
-        msgP.textContent = 'Erro de rede no upload.';
+        msgP.textContent = 'Erro de rede.';
         progress.hidden = true;
       };
       const formData = new FormData();
